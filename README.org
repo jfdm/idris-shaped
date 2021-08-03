@@ -1,0 +1,3 @@
+#+TITLE: Intrinsically Typed Data
+
+Playing around with dependent types to use schema's to restrict the shape of data.

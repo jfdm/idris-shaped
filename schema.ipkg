@@ -1,0 +1,7 @@
+package schema
+
+depends = contrib
+
+modules = Data.Schema.Restricted
+        , Data.Schema
+        , Data.Schema.Data
