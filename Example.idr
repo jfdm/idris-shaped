@@ -3,6 +3,7 @@ module Example
 import Data.Schema.Restricted
 import Data.Schema
 import Data.Schema.Data
+import Data.Schema.Path
 
 %default total
 
@@ -97,6 +98,28 @@ employee1
                         (SeqEmpty (Leaf PostCode "JH01" (RestrictedNot))
                                   Empty)))))
                   Empty)))
+
+
+||| Employee/PersonInfo/*
+Query0 : Query EmployeeSchema
+Query0
+  = Q (StepDown Employee (StepDown PersonInfo All))
+
+
+||| Employee/PersonInfo/FullName
+Query1 : Query EmployeeSchema
+Query1
+  = Q (StepDown Employee (StepDown PersonInfo (ThisChildEmpty (Node FullName))))
+
+||| Employee/PersonInfo/*
+Query1' : Query EmployeeSchema
+Query1'
+  = Q (StepDown Employee (StepDown PersonInfo (ThisChildEmpty All)))
+
+|||
+Query2 : Query EmployeeSchema
+Query2
+  = Q (StepDown Employee (StepDown PersonInfo (NextChildEmpty (ThisChildEmpty (GoLeft (Atom Address))))))
 
 
 -- [ EOF ]
