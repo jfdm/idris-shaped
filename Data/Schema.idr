@@ -17,20 +17,16 @@ data Valid : Type -> Type where
   IsNat    : Valid Nat
 
 public export
-data Atom : (name : Type) -> Type where
-  MkAtom : (n           : name)
-        -> (v           : Type)
-        -> (restriction : Schema.Restriction type)
-        -> (prf         : Valid type)
-                       -> Atom name
-
-public export
 data Schema : (name : Type) -> Bool -> Type where
   ||| The empty schema.
   Empty : Schema n False
 
   ||| A schema with a single component.
-  Simple : Atom n -> Schema n True
+  Simple : (name   : n)
+        -> (v           : Type)
+        -> (restriction : Schema.Restriction type)
+        -> (prf         : Valid type)
+                       -> Schema n True
 
   ||| A named schema with sub-schema.
   Complex : (name   : n)
@@ -52,19 +48,38 @@ data Schema : (name : Type) -> Bool -> Type where
      -> (that : Schema n       b)
              -> Schema n (a && b)
 
+showRestriction : Schema.Restriction a -> String
+showRestriction RestrictedNot = "not restricted"
+showRestriction (Restricted predicate) = "restricted"
+
+export
+partial
+Show n => Show (Schema n b) where
+  show Empty = "{}"
+
+  show (Simple name v restriction IsString)
+    = "(\{show name} : String is \{showRestriction restriction})"
+  show (Simple name v restriction IsChar)
+    = "(\{show name} : Char is \{showRestriction restriction})"
+  show (Simple name v restriction IsNat)
+    = "(\{show name} : Nat is \{showRestriction restriction})"
+
+  show (Complex name schema)
+    = "(\{show name} \{show schema})"
+
+  show (SeqEat this that)
+    = "(\{show this} <+> \{show that})"
+
+  show (SeqEmpty this that)
+    = "(\{show this} <+> \{show that})"
+
+  show (Alt this that)
+    = "(\{show this} <|> \{show that})"
 
 namespace API
   public export
   Schema : Type -> Type
   Schema n = Schema n True
-
---public export %inline
---(<+>) : {a : Bool}
---     -> (this :        Schema n  a)
---     -> (that : inf a (Schema n       b))
---             ->        Schema n (a || b)
---(<+>) {a = False} = SeqEmpty
---(<+>) {a = True}  = SeqEat
 
 %allow_overloads (<|>)
 

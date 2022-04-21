@@ -10,14 +10,10 @@ import Data.Maybe
 
 import Data.Schema.Restricted
 import Data.Schema
+import Data.Schema.Data
 
 public export
-data PathKind
-  = NODE  -- A leaf or a node
-  | PATH  -- Step through Data
-
-public export
-data Path : (n : Type) -> (xsd : Schema n b) -> (k : PathKind) -> Type where
+data Path : (n : Type) -> (xsd_in : Schema n a) -> (xsd_out : Schema n b) -> Type where
   -- [ Nodes ]
   --
   -- Nodes can be:
@@ -27,14 +23,19 @@ data Path : (n : Type) -> (xsd : Schema n b) -> (k : PathKind) -> Type where
   -- + a node that contains shaped data;
   --
 
-  All : Path n schema NODE
+  All : {child : Schema n b}
+     -> (parent : n)
+               -> Path n (Complex parent child)
+                         child
+
 
   Atom : (name : n)
-              -> Path n (Simple (MkAtom name type restriction vtype)) NODE
+              -> Path n (Simple name type restriction vtype)
+                        (Simple name type restriction vtype)
 
   Node : (name : n)
-              -> Path n (Complex name complex) NODE
-
+              -> Path n (Complex name complex)
+                        (Complex name complex)
   -- [ Paths ]
   --
   -- A path tells us how to go down from a root in the data to a prescribed node.
@@ -43,101 +44,109 @@ data Path : (n : Type) -> (xsd : Schema n b) -> (k : PathKind) -> Type where
   ||| Step down into the complex structure.
   |||
   StepDown : (parent : n)
-          -> (step   : Path n                 child     c)
-                    -> Path n (Complex parent child) PATH
+          -> (step   : Path n                 child  res)
+                    -> Path n (Complex parent child) res
 
   ||| Select this child.
-  ThisChildEat : (step : Path n this               ty)
-                      -> Path n (SeqEat this that) PATH
+  ThisChildEat : (step : Path n this               res)
+                      -> Path n (SeqEat this that) res
 
   ||| Select the next child.
-  NextChildEat : (step : Path n that               ty)
-                      -> Path n (SeqEat this that) PATH
+  NextChildEat : (step : Path n that               res)
+                      -> Path n (SeqEat this that) res
 
   ||| Select this child.
-  ThisChildEmpty : (step : Path n this                 ty)
-                        -> Path n (SeqEmpty this that) PATH
+  ThisChildEmpty : (step : Path n this                 res)
+                        -> Path n (SeqEmpty this that) res
 
   ||| Select the next child.
-  NextChildEmpty : (step : Path n that                 ty)
-                        -> Path n (SeqEmpty this that) PATH
+  NextChildEmpty : (step : Path n that                 res)
+                        -> Path n (SeqEmpty this that) res
 
   ||| Go left in a choice
   |||
-  GoLeft : (step : Path n      left        ty)
-                -> Path n (Alt left right) PATH
+  GoLeft : (step : Path n      left        res)
+                -> Path n (Alt left right) res
 
   ||| Go right in a choice
   |||
-  GoRight : (step : Path n           right  ty)
-                 -> Path n (Alt left right) PATH
+  GoRight : (step : Path n           right  res)
+                 -> Path n (Alt left right) res
+
+export
+Show n => Show (Path n i o) where
+  show (All parent) = "\{show parent}/*"
+  show (Atom name) = show name
+  show (Node name) = show name
+  show (StepDown parent step)
+    = "\{show parent}/\{show step}"
+
+  show (ThisChildEat step)
+    = show step
+  show (NextChildEat step)   = show step
+  show (ThisChildEmpty step) = show step
+  show (NextChildEmpty step) = show step
+  show (GoLeft step) = show step
+  show (GoRight step) = show step
 
 public export
 data Query : (xsd : Schema n b) -> Type where
-  Q : Path n xsd type -> Query xsd
+  Q : {xsd_out : Schema n a} -> Path n xsd_in xsd_out  -> Query xsd_in
 
-namespace Raw
-  public export
-  data Path : (name : Type) -> Type where
-    All    : Path n
-    Select : n -> Path n
-    Step   : n -> Path n -> Path n
+export
+{i : Schema n b}
+-> Show n =>
+Show (Query i) where
+  show (Q p) = show p
 
+runQuery : Path n i o
+        -> Data   i
+        -> Maybe (Data     o)
+runQuery (All parent) (Branch parent value)
+ = Just value
 
-  export
-  fromPath : DecEq n
-           => (path : Path n)
-           -> (xsd  : Schema n b)
-                   -> Maybe (Query xsd)
-  fromPath All xsd = Just (Q All)
-  fromPath (Select x) Empty = Nothing
-  fromPath (Select x) (Simple (MkAtom y v restriction prf)) with (decEq x y)
-    fromPath (Select x) (Simple (MkAtom x v restriction prf)) | (Yes Refl)
-      = Just (Q (Atom x))
-    fromPath (Select x) (Simple (MkAtom y v restriction prf)) | (No contra)
-      = Nothing
-  fromPath (Select x) (Complex name schema) with (decEq x name)
-    fromPath (Select x) (Complex x schema) | (Yes Refl)
-      = Just (Q (Node x))
-    fromPath (Select x) (Complex name schema) | (No contra)
-      = Nothing
-  fromPath (Select x) (SeqEat this that)   = Nothing
-  fromPath (Select x) (SeqEmpty this that) = Nothing
-  fromPath (Select x) (Alt this that)      = Nothing
+runQuery (Atom name) (Leaf name value prf prfV)
+  = Just (Leaf name value prf prfV)
 
-  fromPath (Step x y) Empty = Nothing
-  fromPath (Step x y) (Simple z) = Nothing
-  fromPath (Step x y) (Complex name schema) with (decEq x name)
-    fromPath (Step x y) (Complex x schema) | (Yes Refl)
-      = do Q r <- fromPath y schema
-           pure (Q (StepDown x r))
-    fromPath (Step x y) (Complex name schema) | (No contra)
-      = Nothing
+runQuery (Node name) (Branch name value)
+  = Just (Branch name value)
 
-  fromPath (Step x y) (SeqEat this that)
-      = ?argh
+runQuery (StepDown parent step) (Branch parent value)
+  = runQuery step value
 
+runQuery (ThisChildEat step) (SeqEat this that)
+  = runQuery step this
 
-  fromPath (Step x y) (SeqEmpty this that)
-    = case fromPath (Step x y) this of
-        Just (Q p) => pure (Q (ThisChildEmpty p))
-        Nothing =>
-          do Q p <- fromPath (Step x y) that
-             pure (Q (NextChildEmpty p))
+runQuery (NextChildEat step) (SeqEat this that)
+  = runQuery step that
 
-  fromPath (Step x y) (Alt this that)
-    = case fromPath (Step x y) this of
-        Just (Q p) => pure (Q (GoLeft p))
-        Nothing => do Q p <- fromPath (Step x y) that
-                      pure (Q (GoRight p))
+runQuery (ThisChildEmpty step) d with (d)
+  runQuery (ThisChildEmpty step) d | (SeqEmpty this that)
+    = runQuery step this
 
+runQuery (NextChildEmpty step) d with (d)
+  runQuery (NextChildEmpty step) d | (SeqEmpty this that)
+    = runQuery step that
 
+runQuery (GoLeft step) d with (d)
+  runQuery (GoLeft step) d | (This this) = runQuery step this
+  runQuery (GoLeft step) d | (That that) = Nothing
 
---
---public
---data
---
---public export
---run : Data schema
---   -> Query schema
---   ->
+runQuery (GoRight step) d with (d)
+  runQuery (GoRight step) d | (This this) = Nothing
+  runQuery (GoRight step) d | (That that) = runQuery step that
+
+public export
+data Result : (xsd : Schema n b) -> Type where
+  R : {i : Schema n a}
+   -> {o : Schema n b}
+   -> (value : Data o)
+            -> Result i
+
+export
+query : {i : Schema n a} -> Query i -> Data i -> Maybe (Result i)
+query (Q x) y = case runQuery x y of
+                  Nothing => Nothing
+                  Just res => Just (R res)
+
+-- [ EOF ]

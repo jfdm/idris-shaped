@@ -16,7 +16,8 @@ data Data : Schema n b -> Type where
   Leaf : (name  : n)
       -> (value : type)
       -> (prf   : Restriction type restriction value)
-               -> Data (Simple (MkAtom name type restriction validType))
+      -> (validType  : Valid type)
+               -> Data (Simple name type restriction validType)
 
   Branch : (name  : n)
         -> (value : Data               complex)
@@ -29,11 +30,15 @@ data Data : Schema n b -> Type where
   -- Eat and Empty are artefacts from the total schema specification.
   -- It would be better if there is a single `Seq` constructor but alas no.
 
-  SeqEat : (this :      Data         sthis)
+  SeqEat : {sthis : Schema n True}
+        -> {sthat : Schema n b}
+        -> (this :      Data         sthis)
         -> (that : Inf (Data               sthat))
                 ->      Data (SeqEat sthis sthat)
 
-  SeqEmpty : (this : Data           sthis)
+  SeqEmpty : {sthis : Schema n a}
+        -> {sthat : Schema n b}
+        -> (this : Data           sthis)
           -> (that : Data                 sthat)
                   -> Data (SeqEmpty sthis sthat)
 
@@ -49,5 +54,22 @@ data Data : Schema n b -> Type where
   That : (that : Data sthat)
               -> Data (Alt sthis sthat)
 
+export
+partial
+{i : Schema n a} -> Show n => Show (Data i) where
+  show (Leaf name value prf IsString) = "\{show name} = \{show value}"
+  show (Leaf name value prf IsChar)   = "\{show name} = \{show value}"
+  show (Leaf name value prf IsNat)    = "\{show name} = \{show value}"
 
+  show (Branch name value)
+    = "{\{show name} = \{show value}}"
+  show Empty = "{}"
+  show (SeqEat this that)
+    = "\{show this} <+> \{show that}"
+  show (SeqEmpty this that)
+    = "\{show this} <+> \{show that}"
+  show (This this)
+    = show this
+  show (That that)
+    = show that
 -- [ EOF ]

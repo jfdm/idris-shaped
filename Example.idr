@@ -31,6 +31,18 @@ data Name
   | Country
   | PostCode
 
+Show Name where
+  show Employee   = "Employee"
+  show PersonInfo = "PersonInfo"
+  show FullName   = "FullName"
+  show Firstname  = "Firstname"
+  show Lastname   = "Lastname"
+  show Address    = "Address"
+  show FirstLine  = "FirstLine"
+  show City       = "City"
+  show Country    = "Country"
+  show PostCode   = "PostCode"
+
 ||| An Example Schema to describe Employees.
 |||
 ||| The corresponding XSD Schema would potentially be:
@@ -60,14 +72,14 @@ EmployeeSchema : Schema Name
 EmployeeSchema
   = Complex Employee
       (Complex PersonInfo
-          (concat [Complex FullName (concat [Simple $ MkAtom Firstname String RestrictedNot IsString
-                                            ,Simple $ MkAtom Lastname  String RestrictedNot IsString
+          (concat [Complex FullName (concat [Simple Firstname String RestrictedNot IsString
+                                            ,Simple Lastname  String RestrictedNot IsString
                                             ])
-                  ,select [Simple $ MkAtom Address String RestrictedNot IsString
-                          ,(concat [Simple $ MkAtom FirstLine String RestrictedNot           IsString
-                                   ,Simple $ MkAtom City      String RestrictedNot           IsString
-                                   ,Simple $ MkAtom Country   String (Restricted IsUpperStr) IsString
-                                   ,Simple $ MkAtom PostCode  String RestrictedNot           IsString
+                  ,select [Simple Address String RestrictedNot IsString
+                          ,(concat [Simple FirstLine String RestrictedNot           IsString
+                                   ,Simple City      String RestrictedNot           IsString
+                                   ,Simple Country   String (Restricted IsUpperStr) IsString
+                                   ,Simple PostCode  String RestrictedNot           IsString
                                    ])]]))
 
 
@@ -78,10 +90,10 @@ employee0 : Data EmployeeSchema
 employee0
   = Branch Employee
       (Branch PersonInfo
-        (SeqEmpty (Branch FullName (SeqEmpty (Leaf Firstname "Thor" RestrictedNot)
-                                   (SeqEmpty (Leaf Lastname "Odinson" RestrictedNot)
+        (SeqEmpty (Branch FullName (SeqEmpty (Leaf Firstname "Thor" RestrictedNot IsString)
+                                   (SeqEmpty (Leaf Lastname "Odinson" RestrictedNot IsString)
                                              Empty)))
-        (SeqEmpty (This (Leaf Address "Asgard" RestrictedNot))
+        (SeqEmpty (This (Leaf Address "Asgard" RestrictedNot IsString))
                   Empty)))
 
 ||| Another Employee
@@ -89,13 +101,13 @@ employee1 : Data EmployeeSchema
 employee1
   = Branch Employee
       (Branch PersonInfo
-        (SeqEmpty (Branch FullName (SeqEmpty (Leaf Firstname "Loki" RestrictedNot)
-                                   (SeqEmpty (Leaf Lastname "Laufison" RestrictedNot)
+        (SeqEmpty (Branch FullName (SeqEmpty (Leaf Firstname "Loki" RestrictedNot IsString)
+                                   (SeqEmpty (Leaf Lastname "Laufison" RestrictedNot IsString)
                                              Empty)))
-        (SeqEmpty (That (SeqEmpty (Leaf FirstLine "The Frost Palace" RestrictedNot)
-                        (SeqEmpty (Leaf City      "Jotun City"       RestrictedNot)
-                        (SeqEmpty (Leaf Country "JH" (Restricted (S (C (YesIUC Refl) (C (YesIUC Refl) E)))))
-                        (SeqEmpty (Leaf PostCode "JH01" (RestrictedNot))
+        (SeqEmpty (That (SeqEmpty (Leaf FirstLine "The Frost Palace" RestrictedNot IsString)
+                        (SeqEmpty (Leaf City      "Jotun City"       RestrictedNot IsString)
+                        (SeqEmpty (Leaf Country "JH" (Restricted (S (C (YesIUC Refl) (C (YesIUC Refl) E)))) IsString)
+                        (SeqEmpty (Leaf PostCode "JH01" (RestrictedNot) IsString)
                                   Empty)))))
                   Empty)))
 
@@ -103,18 +115,13 @@ employee1
 ||| Employee/PersonInfo/*
 Query0 : Query EmployeeSchema
 Query0
-  = Q (StepDown Employee (StepDown PersonInfo All))
+  = Q (StepDown Employee (All PersonInfo))
 
 
 ||| Employee/PersonInfo/FullName
 Query1 : Query EmployeeSchema
 Query1
   = Q (StepDown Employee (StepDown PersonInfo (ThisChildEmpty (Node FullName))))
-
-||| Employee/PersonInfo/*
-Query1' : Query EmployeeSchema
-Query1'
-  = Q (StepDown Employee (StepDown PersonInfo (ThisChildEmpty All)))
 
 |||
 Query2 : Query EmployeeSchema
